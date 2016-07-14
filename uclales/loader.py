@@ -45,10 +45,10 @@ class UCLALES_NetCDFHandler():
             q_v = q_t - q_l - q_i
             q_d = 1.0 - q_t - q_r 
 
-            T = self.__get_temperature(q_l=q_l, theta_l=theta_l, p=p)
+            T = self.calc_temperature(q_l=q_l, theta_l=theta_l, p=p)
             if var_name == 'rho':
                 q_d = 1.0 - q_t
-                data = self.__get_density(q_d=q_d, q_v=q_v, T=T, p=p, q_l=q_l, q_i=q_i, q_r=q_r)
+                data = self.calc_density(q_d=q_d, q_v=q_v, T=T, p=p, q_l=q_l, q_i=q_i, q_r=q_r)
             elif var_name == 'T':
                 data = T
             elif var_name == 'q_v':
@@ -97,7 +97,7 @@ class UCLALES_NetCDFHandler():
         return (data, grid)
 
     @np.vectorize
-    def __get_density(q_d, q_v, q_l, q_r, q_i, T, p):
+    def calc_density(q_d, q_v, q_l, q_r, q_i, T, p):
         # constants from UCLALES
         R_d = 287.04 # [J/kg/K]
         R_v = 461.5  # [J/kg/K]
@@ -124,7 +124,7 @@ class UCLALES_NetCDFHandler():
         return 1./rho_gas_inv
 
     @np.vectorize
-    def __get_temperature(q_l, p, theta_l):
+    def calc_temperature(q_l, p, theta_l):
         # constants from UCLALES
         cp_d = 1.004*1.0e3 # [J/kg/K]
         R_d = 287.04 # [J/kg/K]
@@ -136,6 +136,10 @@ class UCLALES_NetCDFHandler():
         # reflects the form used in UCLALES where in place of the mixture
         # heat-capacity the dry-air heat capacity is used
         temp_func = lambda T: theta_l - T*(p_theta/p)**(R_d/cp_d)*np.exp(-L_v*q_l/(cp_d*T))
+
+        if np.all(q_l == 0.0):
+            # no need for root finding
+            return theta_l/((p_theta/p)**(R_d/cp_d))
 
         # XXX: brentq solver requires bounds, I don't expect we'll get below -100C
         T_min = -100. + 273.
