@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# Utility to extract 2D horizontal cross-sections from 3D output-files from
+# UCLALES
+#
+# 2017 Leif Denby
+
+source_dir=${SOURCE_DIR:-$(pwd)}
+output_dir=$(pwd)
+
+command_exists () {
+    type "$1" &> /dev/null ;
+}
+
+function gathervar {
+  dataset=$1
+  source_dir=$2
+  output_dir=$3
+  nx=$4
+  ny=$5
+  var=$6
+  k=$7
+
+  slice_partials_dir="${output_dir}/partials/k${k}"
+  slice_out_filename="${output_dir}/${dataset}.out.xy.k${k}.${var}.nc"
+  if ! [[ -x $slice_partials_dir ]]; then
+    mkdir -p $slice_partials_dir
+  fi
+  echo $slice_out_filename
+
+  if [ -s ${slice_out_filename} ]; then
+    echo " File ${slice_out_filename} exists already, skipping this variable"
+  else
+    for m in $(seq 0 $nx); do
+      mstring=$(printf %04d $m)
+
+      # filename for strip in x-direction
+      xstrip_var_fn="${slice_partials_dir}/${dataset}.${mstring}.k${k}.${var}.nc"
+
+      if [ ! -f $xstrip_var_fn ]; then
+        for n in $(seq 0 $ny); do
+          nstring=$(printf %04d $n)
+
+          # extract a slice from the 3D block at this (x,y) index
+          block_fn="${source_dir}/${dataset}.${mstring}${nstring}.nc"
+          blockslice_fn="${slice_partials_dir}/${dataset}.${mstring}${nstring}.k${k}.nc"
+          if [ ! -f $blockslice_fn ]; then
+            cdo sellevidx,$k $block_fn $blockslice_fn
+          fi
+
+          # extract variable requested
+          blockslice_var_fn="${slice_partials_dir}/${dataset}.${mstring}${nstring}.k${k}.${var}.nc"
+          if [ ! -f $blockslice_var_fn ]; then
+            cdo selname,$var $blockslice_fn $blockslice_var_fn
+          fi
+        done
+
+        # gather into strip in x-direction
+        all_blockslice_var_fns="${slice_partials_dir}/${dataset}.${mstring}????.k${k}.${var}.nc"
+        cdo gather,1 $all_blockslice_var_fns $xstrip_var_fn
+
+        rm $all_blockslice_var_fns
+      fi
+
+    done
+    # gather all strips in y-direction
+    all_xstrip_var_fns="${slice_partials_dir}/${dataset}.????.k${k}.${var}.nc"
+    cdo gather $all_xstrip_var_fns $slice_out_filename
+    rm $all_xstrip_var_fns
+
+    echo "cdo gather completed for $var at k=${k} output in ${slice_out_filename}"
+  fi
+
+}
+export -f gathervar
+
+if [ "$#" -lt 4 ]; then
+    echo "usage: $0 dataset nproc var_names [k-indecies]"
+    echo
+    echo "   dataset:   dataset name, e.g. 'rico_gcss'"
+    echo "   nproc:     number of processes for parallel processing"
+    echo "   var_names: comma-separated variables to extract e.g. 'w,t,q'"
+    echo "   k-index:   height indecies to extract, e.g. '10,11,12'"
+    echo
+    echo "   Set SOURCE_DIR to override where source-data is looked for"
+    exit 1
+else
+    dataset=$1
+    nproc=$2
+    variables=(${3//,/ })
+    k_indecies=(${4//,/ })
+
+    if command_exists cdo ; then
+        has_cdo=1
+    else
+        echo "Can't find cdo in PATH, please make sure it is available"
+        exit 1
+    fi
+
+    echo "Looking for files in $source_dir"
+
+    fstem_in="${source_dir}/${dataset}"
+    fstem_out="${output_dir}/${dataset}"
+
+    nn=$( ls -l ${fstem_in}.????????.nc | wc -l )
+    nx=$( ls -l ${fstem_in}.0000????.nc | wc -l )
+    ny=$( ls -l ${fstem_in}.????0000.nc | wc -l )
+
+    echo "Found nn=$nn files from nx=$nx ny=$ny proc"
+
+    echo "Extracting ${variables[*]} from ${dataset}, output will be written to ${output_dir}"
+fi
+
+available_vars=($(cdo showname ${fstem_in}.00000000.nc ))
+
+for var in "${variables[@]}"; do
+  found_var=0
+  for a_var in "${available_vars[@]}"; do
+    if [[ $a_var == $var ]]; then
+      found_var=1
+    fi
+  done
+
+  if [[ $found_var == 0 ]]; then
+    echo
+    echo "Error: couldn't find variable $var"
+    echo
+    echo "Available variables: ${available_vars[*]}"
+    exit 1
+  fi
+done
+
+nx=$(( $nx - 1 )) # indexing starts at 0
+ny=$(( $ny - 1 ))
+
+args=""
+for var in "${variables[@]}"; do
+  for k in "${k_indecies[@]}"; do
+    args=$args"$var $k"$'\n'
+  done
+done
+
+echo -e "$args" | xargs -n2 -P$nproc -I{} bash -c "gathervar $dataset $source_dir $output_dir $nx $ny {}"

@@ -1,0 +1,144 @@
+#!/bin/bash
+# vim: tabstop=2 shiftwidth=2
+
+source_dir=${SOURCE_DIR:-$(pwd)}
+output_dir=$(pwd)
+
+command_exists () {
+  type "$1" &> /dev/null ;
+}
+
+function gathervar {
+  dataset=$1
+  source_dir=$2
+  output_dir=$3
+  nx=$4
+  ny=$5
+  var=$6
+  tn=$7
+
+  partials_dir="${output_dir}/partials/3d/"
+  out_filename="${output_dir}/${dataset}.tn${tn}.${var}.nc"
+  if ! [[ -x $partials_dir ]]; then
+    mkdir -p $partials_dir
+  fi
+
+  if [ -s ${out_filename} ]; then
+    echo " File ${out_filename} exists already, skipping this variable"
+  else
+    for m in $(seq 0 $nx); do
+      mstring=$(printf %04d $m)
+
+      # filename for strip of blocks in x-direction
+      xstrip_var_fn="${partials_dir}/${dataset}.${mstring}.tn${tn}.${var}.nc"
+
+      if [ ! -f $xstrip_var_fn ]; then
+
+
+        cdo_operations=""
+        for n in $(seq 0 $ny); do
+          nstring=$(printf %04d $n)
+
+          # extract variable from 3D block at this (x,y) index
+          block_fn="${source_dir}/${dataset}.${mstring}${nstring}.nc"
+          block_var_fn="${partials_dir}/${dataset}.${mstring}${nstring}.${var}.nc"
+
+          if [ ! -f $block_var_fn ]; then
+            #cdo selname,$var $block_fn $block_var_fn
+            cdo_operations="${cdo_operations}"$'\n'"selname,$var $block_fn $block_var_fn"
+          fi
+        done
+        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {}"
+
+
+        cdo_operations=""
+        for n in $(seq 0 $ny); do
+          nstring=$(printf %04d $n)
+
+          # extract timestep requested
+          block_var_fn="${partials_dir}/${dataset}.${mstring}${nstring}.${var}.nc"
+          block_var_tn_fn="${partials_dir}/${dataset}.${mstring}${nstring}.tn${tn}.${var}.nc"
+          if [ ! -f $block_var_tn_fn ]; then
+            cdo_operations="${cdo_operations}"$'\n'"seltimestep,$tn $block_var_fn $block_var_tn_fn"
+          fi
+        done
+        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {}"
+        all_block_var_fns="${partials_dir}/${dataset}.${mstring}????.${var}.nc"
+        rm $all_block_var_fns
+
+
+        # gather into strip in x-direction
+        all_block_var_tn_fns="${partials_dir}/${dataset}.${mstring}????.tn${tn}.${var}.nc"
+        cdo gather,1 $all_block_var_tn_fns $xstrip_var_fn
+
+        #rm $all_block_var_tn_fns
+      fi
+
+    done
+    # gather all strips in y-direction
+    all_xstrip_var_fns="${partials_dir}/${dataset}.????.tn${tn}.${var}.nc"
+    cdo gather $all_xstrip_var_fns $out_filename
+    #rm $all_xstrip_var_fns
+
+    echo "cdo gather completed for $var at k=${k} output in ${slice_out_filename}"
+  fi
+
+}
+export -f gathervar
+
+if [ "$#" -lt 3 ]; then
+    echo "usage: $0 dataset var_name tn"
+    echo
+    echo "   dataset:   dataset name, e.g. 'rico_gcss'"
+    echo "   var_name:  variable to extract"
+    echo "   tn:        timestep to extract"
+    echo
+    echo "   Set SOURCE_DIR to override where source-data is looked for"
+    exit 1
+else
+    dataset=$1
+    var_name=$2
+    tn=$3
+
+    if command_exists cdo ; then
+        has_cdo=1
+    else
+        echo "Can't find cdo in PATH, please make sure it is available"
+        exit 1
+    fi
+
+    echo "Looking for files in $source_dir"
+
+    fstem_in="${source_dir}/${dataset}"
+    fstem_out="${output_dir}/${dataset}"
+
+    nn=$( ls -l ${fstem_in}.????????.nc | wc -l )
+    nx=$( ls -l ${fstem_in}.0000????.nc | wc -l )
+    ny=$( ls -l ${fstem_in}.????0000.nc | wc -l )
+
+    echo "Found nn=$nn files from nx=$nx ny=$ny proc"
+
+    echo "Extracting ${var_name} from ${dataset} at tn=${tn}, output will be written to ${output_dir}"
+fi
+
+available_vars=($(cdo showname ${fstem_in}.00000000.nc ))
+
+found_var=0
+for a_var in "${available_vars[@]}"; do
+  if [[ $a_var == $var_name ]]; then
+    found_var=1
+  fi
+done
+
+if [[ $found_var == 0 ]]; then
+  echo
+  echo "Error: couldn't find variable $var_name"
+  echo
+  echo "Available variables: ${available_vars[*]}"
+  exit 1
+fi
+
+nx=$(( $nx - 1 )) # indexing starts at 0
+ny=$(( $ny - 1 ))
+
+gathervar $dataset $source_dir $output_dir $nx $ny $var_name $tn

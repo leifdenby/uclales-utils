@@ -1,0 +1,163 @@
+#!/bin/bash
+#
+# Utility to extract 2D horizontal cross-sections from 2D output-files from
+# UCLALES
+#
+# 2017 Leif Denby
+
+source_dir=${SOURCE_DIR:-$(pwd)}
+output_dir=$(pwd)
+
+command_exists () {
+    type "$1" &> /dev/null ;
+}
+
+function gathervar {
+  dataset=$1
+  source_dir=$2
+  output_dir=$3
+  nx=$4
+  ny=$5
+  nproc=$6
+  var=$7
+
+  slice_partials_dir="${output_dir}/partials/"
+  slice_out_filename="${output_dir}/${dataset}.out.xy.${var}.nc"
+  if ! [[ -x $slice_partials_dir ]]; then
+    mkdir -p $slice_partials_dir
+  fi
+  echo $slice_out_filename
+
+  if [ -s ${slice_out_filename} ]; then
+    echo " File ${slice_out_filename} exists already, skipping this variable"
+  else
+
+    # 1. Extract variable from cross-section file of each IO block
+    ###
+    echo -n "Finding blocks to extact."
+    cdo_operations=() # build up cdo operations so we can execute in parallel
+    for m in $(seq 0 $nx); do
+      mstring=$(printf %04d $m)
+
+      # filename for strip in x-direction
+      xstrip_var_fn="${slice_partials_dir}/${dataset}.${mstring}.${var}.nc"
+
+      if [ ! -f $xstrip_var_fn ]; then
+
+        for n in $(seq 0 $ny); do
+          nstring=$(printf %04d $n)
+
+          # extract variable requested
+          slice_fn="${source_dir}/${dataset}.out.xy.${mstring}.${nstring}.nc"
+          slice_var_fn="${slice_partials_dir}/${dataset}.${mstring}.${nstring}.${var}.nc"
+          if [ ! -f $slice_var_fn ]; then
+            #cdo selname,$var $slice_fn $slice_var_fn
+            cdo_operations+=("selname,$var $slice_fn $slice_var_fn")
+          fi
+        done
+      fi
+
+      echo -n "."
+    done
+    echo
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+
+    # 2. Create strips in y-direction
+    ###
+    cdo_operations=() # build up cdo operations so we can execute in parallel
+    for m in $(seq 0 $nx); do
+      mstring=$(printf %04d $m)
+
+      # filename for strip in y-direction
+      ystrip_var_fn="${slice_partials_dir}/${dataset}.${mstring}.${var}.nc"
+
+      # gather into strip in x-direction
+      all_slice_var_fns="${slice_partials_dir}/${dataset}.${mstring}.????.${var}.nc"
+      #cdo gather,1 $all_slice_var_fns $ystrip_var_fn
+      cdo_operations+=("gather,1 $all_slice_var_fns $ystrip_var_fn")
+
+      rm $all_slice_var_fns
+    done
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+
+
+    # 3. gather all strips in x-direction
+    ###
+    all_xstrip_var_fns="${slice_partials_dir}/${dataset}.????.${var}.nc"
+    cdo gather $all_xstrip_var_fns $slice_out_filename
+    rm $all_xstrip_var_fns
+
+    echo "cdo gather completed for $var at k=${k} output in ${slice_out_filename}"
+  fi
+
+}
+export -f gathervar
+
+if [ "$#" -lt 3 ]; then
+    echo "usage: $0 dataset nproc var_names"
+    echo
+    echo "   dataset:   dataset name, e.g. 'rico_gcss'"
+    echo "   nproc:     number of processes for parallel processing (nproc=0 => number of system CPUs)"
+    echo "   var_names: comma-separated variables to extract e.g. 'w,t,q'"
+    echo
+    echo "   Set SOURCE_DIR to override where source-data is looked for"
+    exit 1
+else
+    dataset=$1
+    nproc=$2
+    variables=(${3//,/ })
+
+    if command_exists cdo ; then
+        has_cdo=1
+    else
+        echo "Can't find cdo in PATH, please make sure it is available"
+        exit 1
+    fi
+
+    echo "Looking for files in $source_dir"
+
+    fstem_in="${source_dir}/${dataset}.out.xy"
+    fstem_out="${output_dir}/${dataset}"
+
+    nn=$( ls -l ${fstem_in}.????.????.nc | wc -l )
+    nx=$( ls -l ${fstem_in}.0000.????.nc | wc -l )
+    ny=$( ls -l ${fstem_in}.????.0000.nc | wc -l )
+
+    echo "Found nn=$nn files from nx=$nx ny=$ny proc"
+
+    if [ "$nn" -lt 1 ]; then
+         echo "Error: no source files found"
+         exit 1
+    fi
+
+    echo "Extracting ${variables[*]} from ${dataset}, output will be written to ${output_dir}"
+fi
+
+available_vars=($(cdo showname ${fstem_in}.0000.0000.nc ))
+
+for var in "${variables[@]}"; do
+  found_var=0
+  for a_var in "${available_vars[@]}"; do
+    if [[ $a_var == $var ]]; then
+      found_var=1
+    fi
+  done
+
+  if [[ $found_var == 0 ]]; then
+    echo
+    echo "Error: couldn't find variable $var"
+    echo
+    echo "Available variables: ${available_vars[*]}"
+    exit 1
+  fi
+done
+
+nx=$(( $nx - 1 )) # indexing starts at 0
+ny=$(( $ny - 1 ))
+
+args=""
+for var in "${variables[@]}"; do
+  args=$args"$var"$'\n'
+done
+
+echo -e "$args" | xargs -n1 -I{} bash -c "gathervar $dataset $source_dir $output_dir $nx $ny $nproc {}"
