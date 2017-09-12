@@ -1,0 +1,6 @@
+#!/bin/sh
+TIMEVAR="time"
+#DEBUG="-debug"
+
+ncdfvdfcreate $DEBUG -vars3d w,q -xcoordvar xt -ycoordvar yt -zcoordvar zm -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf
+ncdf2vdf $DEBUG -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf
