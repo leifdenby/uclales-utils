@@ -21,7 +21,7 @@ function gathervar {
   nproc=$6
   var=$7
 
-  slice_partials_dir="${output_dir}/partials/"
+  slice_partials_dir="${output_dir}/partials"
   slice_out_filename="${output_dir}/${dataset}.out.xy.${var}.nc"
   if ! [[ -x $slice_partials_dir ]]; then
     mkdir -p $slice_partials_dir
