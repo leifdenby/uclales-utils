@@ -71,12 +71,14 @@ function gathervar {
       # filename for strip in y-direction
       ystrip_var_fn="${slice_partials_dir}/${dataset}.${mstring}.${var}.nc"
 
-      # gather into strip in x-direction
-      all_slice_var_fns="${slice_partials_dir}/${dataset}.${mstring}.????.${var}.nc"
-      #cdo gather,1 $all_slice_var_fns $ystrip_var_fn
-      cdo_operations+=("gather,1 $all_slice_var_fns $ystrip_var_fn")
+      if [ ! -f $ystrip_var_fn ]; then
+        # gather into strip in x-direction
+        all_slice_var_fns="${slice_partials_dir}/${dataset}.${mstring}.????.${var}.nc"
+        #cdo gather,1 $all_slice_var_fns $ystrip_var_fn
+        cdo_operations+=("gather,1 $all_slice_var_fns $ystrip_var_fn")
 
-      rm $all_slice_var_fns
+        #rm $all_slice_var_fns
+      fi
     done
     printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
 
@@ -85,7 +87,7 @@ function gathervar {
     ###
     all_xstrip_var_fns="${slice_partials_dir}/${dataset}.????.${var}.nc"
     cdo gather $all_xstrip_var_fns $slice_out_filename
-    rm $all_xstrip_var_fns
+    #rm $all_xstrip_var_fns
 
     echo "cdo gather completed for $var at k=${k} output in ${slice_out_filename}"
   fi
