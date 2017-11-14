@@ -17,13 +17,13 @@ from uclales.loader import UCLALES_NetCDFHandler
 FILL_VALUE = -1.0e33
 fname_base = "rico_gcss.out.xy.k{k}.{var}.nc"
 
-def run(k_start, k_end):
+def run(k_indecies):
 
     timesteps = np.array([240, 480, 720])/60/2
 
     print "extracting data for the following timesteps:", timesteps
 
-    for k in range(k_start, k_end):
+    for k in k_indecies:
         print "New slice:", k
         sys.stdout.flush()
 
@@ -139,6 +139,7 @@ def run(k_start, k_end):
 
                     T = UCLALES_NetCDFHandler.calc_temperature(q_l=q_l[s], p=p[s], theta_l=theta_l[s])
 
+
                     if add_temperature_info:
                         T_var__handle[tn,i,:,0] = T
 
@@ -152,12 +153,29 @@ def run(k_start, k_end):
                         rho_var__handle[tn,i,:,0] = rho
 
 
+def parseNumList(string):
+    """
+    https://stackoverflow.com/a/6512463/271776
+    """
+    import argparse
+    import re
+    m = re.match(r'(\d+)(?:-(\d+))?$', string)
+    # ^ (or use .split('-'). anyway you like.)
+    if not m:
+        if len(string.split(',')) > 1:
+            return [int(s) for s in string.split(',')]
+        else:
+            raise argparse.ArgumentTypeError("'" + string + "' is not a range of number. Expected forms like '0-5', '1,2,5' or '2'.")
+    else:
+        start = m.group(1)
+        end = m.group(2) or start
+        return list(range(int(start,10), int(end,10)+1))
+
 if __name__ == "__main__":
     import argparse
 
     argparser = argparse.ArgumentParser(__doc__)
-    argparser.add_argument('k_start', type=int)
-    argparser.add_argument('k_end', type=int)
+    argparser.add_argument('k_indecies', type=parseNumList)
 
     args = argparser.parse_args()
 
