@@ -122,8 +122,8 @@ else
     fstem_out="${output_dir}/${dataset}"
 
     nn=$( ls -l ${fstem_in}.????.????.nc | wc -l )
-    nx=$( ls -l ${fstem_in}.0000.????.nc | wc -l )
-    ny=$( ls -l ${fstem_in}.????.0000.nc | wc -l )
+    nx=$( ls -l ${fstem_in}.????.0000.nc | wc -l )
+    ny=$( ls -l ${fstem_in}.0000.????.nc | wc -l )
 
     echo "Found nn=$nn files from nx=$nx ny=$ny proc"
 
