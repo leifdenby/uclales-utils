@@ -60,7 +60,11 @@ function gathervar {
       echo -n "."
     done
     echo
-    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {} || exit 255"
+    # ensure we stop if there was a problem
+    if [ $? != 0 ]; then
+        exit 1
+    fi
 
     # 2. Create strips in y-direction
     ###
@@ -80,7 +84,11 @@ function gathervar {
         #rm $all_slice_var_fns
       fi
     done
-    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {} || exit 255"
+    # ensure we stop if there was a problem
+    if [ $? != 0 ]; then
+        exit 1
+    fi
 
 
     # 3. gather all strips in x-direction
