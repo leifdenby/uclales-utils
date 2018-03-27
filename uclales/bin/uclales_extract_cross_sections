@@ -60,7 +60,7 @@ function gathervar {
       echo -n "."
     done
     echo
-    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo -r {}"
 
     # 2. Create strips in y-direction
     ###
@@ -80,13 +80,13 @@ function gathervar {
         #rm $all_slice_var_fns
       fi
     done
-    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo {}"
+    printf "%s\n" "${cdo_operations[@]}" | xargs -P${nproc} -I{} bash -c "nice -n 20 cdo -r {}"
 
 
     # 3. gather all strips in x-direction
     ###
     all_xstrip_var_fns="${slice_partials_dir}/${dataset}.????.${var}.nc"
-    cdo gather $all_xstrip_var_fns $slice_out_filename
+    cdo -r gather $all_xstrip_var_fns $slice_out_filename
     #rm $all_xstrip_var_fns
 
     echo "cdo gather completed for $var at k=${k} output in ${slice_out_filename}"
