@@ -48,7 +48,11 @@ function gathervar {
             cdo_operations="${cdo_operations}"$'\n'"selname,$var $block_fn $block_var_fn"
           fi
         done
-        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {}"
+        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {} || exit 255"
+        # ensure we stop if there was a problem
+        if [ $? != 0 ]; then
+          exit 1
+        fi
 
 
         cdo_operations=""
@@ -62,7 +66,12 @@ function gathervar {
             cdo_operations="${cdo_operations}"$'\n'"seltimestep,$tn $block_var_fn $block_var_tn_fn"
           fi
         done
-        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {}"
+        echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {} || exit 255"
+        # ensure we stop if there was a problem
+        if [ $? != 0 ]; then
+          exit 1
+        fi
+
         all_block_var_fns="${partials_dir}/${dataset}.${mstring}????.${var}.nc"
         rm $all_block_var_fns
 
