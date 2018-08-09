@@ -52,7 +52,7 @@ function gathervar {
           slice_var_fn="${slice_partials_dir}/${dataset}.${mstring}.${nstring}.${var}.nc"
           if [ ! -f $slice_var_fn ]; then
             #cdo selname,$var $slice_fn $slice_var_fn
-            cdo_operations+=("selname,$var $slice_fn $slice_var_fn")
+            cdo_operations+=("-r selname,$var $slice_fn $slice_var_fn")
           fi
         done
       fi
