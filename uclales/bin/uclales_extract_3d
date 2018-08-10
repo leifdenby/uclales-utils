@@ -26,7 +26,7 @@ function gathervar {
   if [ -s ${out_filename} ]; then
     echo " File ${out_filename} exists already, skipping this variable"
   else
-    for m in $(seq 0 $nx); do
+    for m in $(seq 0 $ny); do
       mstring=$(printf %04d $m)
 
       # filename for strip of blocks in x-direction
@@ -36,7 +36,7 @@ function gathervar {
 
 
         cdo_operations=""
-        for n in $(seq 0 $ny); do
+        for n in $(seq 0 $nx); do
           nstring=$(printf %04d $n)
 
           # extract variable from 3D block at this (x,y) index
@@ -103,6 +103,7 @@ if [ "$#" -lt 3 ]; then
     echo "   tn:        timestep to extract"
     echo
     echo "   Set SOURCE_DIR to override where source-data is looked for"
+    echo "   NB: cdo counts timesteps from 1 (not 0), but we correct for this so that tn should start from 0"
     exit 1
 else
     dataset=$1
@@ -115,6 +116,8 @@ else
         echo "Can't find cdo in PATH, please make sure it is available"
         exit 1
     fi
+
+    tn_offset=$(echo "${tn}+1" | bc)
 
     echo "Looking for files in $source_dir"
 
@@ -150,4 +153,4 @@ fi
 nx=$(( $nx - 1 )) # indexing starts at 0
 ny=$(( $ny - 1 ))
 
-gathervar $dataset $source_dir $output_dir $nx $ny $var_name $tn
+gathervar $dataset $source_dir $output_dir $nx $ny $var_name $tn_offset
