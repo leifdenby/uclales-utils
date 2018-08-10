@@ -17,6 +17,11 @@ function gathervar {
   var=$6
   tn=$7
 
+  # cdo indexes the first timestep as 1 instead of 0, but we want out output
+  # files to have python array indexing (starting at 0) so we offset the value
+  # we pass to cdo
+  tn_offset=$(echo "${tn}+1" | bc)
+
   partials_dir="${output_dir}/partials/3d/"
   out_filename="${output_dir}/${dataset}.tn${tn}.${var}.nc"
   if ! [[ -x $partials_dir ]]; then
@@ -63,7 +68,7 @@ function gathervar {
           block_var_fn="${partials_dir}/${dataset}.${mstring}${nstring}.${var}.nc"
           block_var_tn_fn="${partials_dir}/${dataset}.${mstring}${nstring}.tn${tn}.${var}.nc"
           if [ ! -f $block_var_tn_fn ]; then
-            cdo_operations="${cdo_operations}"$'\n'"seltimestep,$tn $block_var_fn $block_var_tn_fn"
+            cdo_operations="${cdo_operations}"$'\n'"seltimestep,${tn_offset} $block_var_fn $block_var_tn_fn"
           fi
         done
         echo -e "$cdo_operations" | xargs -P0 -I{} bash -c "nice -n 20 cdo {} || exit 255"
@@ -117,8 +122,6 @@ else
         exit 1
     fi
 
-    tn_offset=$(echo "${tn}+1" | bc)
-
     echo "Looking for files in $source_dir"
 
     fstem_in="${source_dir}/${dataset}"
@@ -153,4 +156,4 @@ fi
 nx=$(( $nx - 1 )) # indexing starts at 0
 ny=$(( $ny - 1 ))
 
-gathervar $dataset $source_dir $output_dir $nx $ny $var_name $tn_offset
+gathervar $dataset $source_dir $output_dir $nx $ny $var_name $tn
