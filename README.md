@@ -14,5 +14,3 @@ pip install git+https://github.com/leifdenby/uclales-utils#egg=uclales-utils
 ## Usage
 
 TODO
-
-
