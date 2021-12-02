@@ -50,4 +50,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test package with pytest (including notebooks)
       run: |
-        python -m pytest --nbval-lax --current-env
+        python -m pytest --current-env
