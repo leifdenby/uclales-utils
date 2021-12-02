@@ -1,0 +1,8 @@
+#!/bin/sh
+TIMEVAR="time"
+#DEBUG="-debug"
+
+ncdfvdfcreate $DEBUG -xcoordvar xt -ycoordvar yt -zcoordvar zm -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf
+#ncdfvdfcreate $DEBUG -gridtype regular -coordsystem cartesian -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf -extents 0:0:0:10e3:10e3:4e3 -mapprojection "+proj=latlon +ellps=sphere" -gridtype regular
+#ncdfvdfcreate $DEBUG -gridtype regular -coordsystem cartesian -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf -extents 0:0:0:3e3:20e3:20e3 -mapprojection "+proj=latlon +ellps=sphere" -gridtype regular
+ncdf2vdf $DEBUG -timevars $TIMEVAR -timedims $TIMEVAR $1.nc $1.vdf
