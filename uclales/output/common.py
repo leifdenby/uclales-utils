@@ -35,6 +35,8 @@ def _fix_time_units(da):
         da = (da * 24 * 60 * 60).astype(int)
         da.attrs["units"] = "seconds since 2000-01-01 00:00:00"
         modified = True
+    elif da.attrs["units"] == "s":
+        pass
     else:
         raise NotImplementedError(da.attrs["units"])
     return da, modified
