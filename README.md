@@ -15,15 +15,15 @@ pip install git+https://github.com/leifdenby/uclales-utils#egg=uclales-utils
 
 ### Extracting 3D fields from UCLALES output
 
-Because UCLALES creates an netCDF for each individual core (when running
+Because UCLALES creates a netCDF for each individual core (when running
 multi-core simulations using MPI) these files must be aggregated together to
 extract the full 3D field for a variable. `uclales-utils` has functionality
 implemented to extract the 3D field of a specific field at a specific timestep.
 To make the extraction faster, and to break the extraction down into individual
 steps that can be checked, this is implemented using the
 [luigi](https://github.com/spotify/luigi) pipeline package. Executing the
-pipeline may either done using a single worker, or if your computer has
-multiple CPUs it may speed up the extraction to use multiple.
+pipeline may either be done using a single worker, or if your computer has
+multiple CPUs you may speed up the extraction process by using multiple workers.
 
 For serial executing of the extraction run
 
@@ -39,7 +39,7 @@ by `rico` in the filename (i.e. the 3D files are called `rico.########.nc`)
 python -m luigi --module uclales.output Extract3D --file-prefix rico --tn 5 --var-name w --local-scheduler
 ```
 
-To run the executing across multiple workers in parallel you must start
+To run the extraction across multiple workers in parallel you must start
 `luigid` in a separate process, and then run the above command replacing
 `--local-scheduler` with `--workers <number-of-workers>`
 
