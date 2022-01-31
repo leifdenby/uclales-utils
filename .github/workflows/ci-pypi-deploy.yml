@@ -1,0 +1,19 @@
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+     - master
+
+jobs:
+  build:
+    name: build and upload release to pypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - uses: casperdcl/deploy-pypi@v2
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          pip: wheel -w dist/ --no-deps .
+          upload: ${{ github.event_name == 'release' && github.event.action == 'published' }}
