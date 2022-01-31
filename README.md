@@ -30,7 +30,7 @@ workers.
 For serial executing of the extraction run
 
 ```bash
-python -m luigi --module uclales.output Extract --file-prefix <file-prefix> --var-name <variable> [--tn <timestep>] [--orientation <cross-section-orientation>] --local-scheduler
+python -m luigi --module uclales.output Extract --kind <3d or 2d> --file-prefix <file-prefix> --var-name <variable> [--tn <timestep>] [--orientation <cross-section-orientation>] --local-scheduler
 ```
 
 For example, to extract the 3D vertical velocity (`w`) field at the 5th timestep
@@ -38,13 +38,13 @@ For example, to extract the 3D vertical velocity (`w`) field at the 5th timestep
 by `rico` in the filename (i.e. the 3D files are called `rico.########.nc`)
 
 ```bash
-python -m luigi --module uclales.output Extract --file-prefix rico --tn 5 --var-name w --local-scheduler
+python -m luigi --module uclales.output Extract --kind 3d --file-prefix rico --tn 5 --var-name w --local-scheduler
 ```
 
 Or to extract say the 2D field liquid-water path (`lwp`) you would run
 
 ```bash
-python -m luigi --module uclales.output Extract --file-prefix rico --var-name lwp --orientation xy --local-scheduler
+python -m luigi --module uclales.output Extract --kind 2d --file-prefix rico --var-name lwp --orientation xy --local-scheduler
 ```
 
 You can optionally provide the arguments `--source-path` and `--dest-path` to
@@ -59,7 +59,7 @@ To run the extraction across multiple workers in parallel you must start
 For example if you have 8 cores on your machine you might run
 
 ```bash
-python -m luigi --module uclales.output Extract --file-prefix rico --tn 5 --var-name w --workers 8
+python -m luigi --module uclales.output Extract --kind 3d --file-prefix rico --tn 5 --var-name w --workers 8
 ```
 
 While `luigid` is running you can check the progress on the extraction process
