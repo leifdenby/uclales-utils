@@ -1,3 +1,5 @@
+name: package-release
+
 on:
   workflow_dispatch:
   pull_request:
