@@ -5,7 +5,15 @@ model](https://github.com/uclales/uclales).
 
 # Installation
 
-`uclales-utils` can be installed with `pip` directly from github
+Install `uclales-utils` with `pip` from [pypi](https://pypi.org/) to get the
+most recent tagged version:
+
+```bash
+pip install uclales-utils
+```
+
+
+or directly from github to get the development version:
 
 ```bash
 pip install git+https://github.com/leifdenby/uclales-utils#egg=uclales-utils
