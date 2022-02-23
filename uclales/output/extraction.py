@@ -6,6 +6,7 @@ luigi-based pipeline for extracting either:
 
 from per-core column output from the UCLALES model
 """
+import functools
 import pprint
 import signal
 import subprocess
@@ -64,17 +65,19 @@ class XArrayTarget(luigi.target.FileSystemTarget):
 def _execute(cmd):
     print(" ".join(cmd))
     # https://stackoverflow.com/a/4417735
-    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+    popen = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
     for stdout_line in iter(popen.stdout.readline, ""):
         yield stdout_line
     popen.stdout.close()
     return_code = popen.wait()
 
     if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
+        raise subprocess.CalledProcessError(return_code, cmd, popen.stderr.read())
 
 
-def _call_cdo(args, verbose=True):
+def _call_cdo(args, verbose=True, return_output_on_error=False):
     try:
         cmd = ["cdo"] + args
         for output in _execute(cmd):
@@ -82,6 +85,8 @@ def _call_cdo(args, verbose=True):
                 print((output.strip()))
 
     except subprocess.CalledProcessError as ex:
+        if return_output_on_error:
+            return vars(ex)["output"]
         return_code = ex.returncode
         error_extra = ""
         if -return_code == signal.SIGSEGV:
@@ -91,6 +96,13 @@ def _call_cdo(args, verbose=True):
             "There was a problem when calling the tracking "
             "utility (errno={}): {} {}".format(error_extra, return_code, ex)
         )
+
+
+@functools.lru_cache(10)
+def _cdo_has_command(cmd):
+    output = _call_cdo([cmd], verbose=False, return_output_on_error=True)
+    has_op = "Operator >gather< not found!" not in output
+    return has_op
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -380,8 +392,20 @@ class UCLALESStripSelectVariable(luigi.Task):
 
     def run(self):
         if self.use_cdo:
+            if _cdo_has_command("gather"):
+                cdo_command = "gather"
+            else:
+                cdo_command = "collgrid"
+
+            # if we're concatenating in the x-direction we need to tell cdo to
+            # add an extra dimension for y
+            if self.dim == "x":
+                cdo_command += ",1"
+
             args = (
-                ["gather,1"] + [inp.path for inp in self.input()] + [self.output().path]
+                [cdo_command]
+                + [inp.path for inp in self.input()]
+                + [self.output().path]
             )
             _call_cdo(args)
         else:
@@ -603,8 +627,18 @@ class ExtractByStrips(_Merge3DBaseTask):
 
     def run(self):
         if self.use_cdo:
+            if _cdo_has_command("gather"):
+                cdo_command = "gather"
+            else:
+                cdo_command = "collgrid"
+
+            # if we're concatenating in the y-direction we need to tell cdo to
+            # add an extra dimension for x
+            if self.dim == "y":
+                cdo_command += ",1"
+
             args = (
-                ["gather"]
+                [cdo_command]
                 + [inp.path for inp in self.input()["parts"]]
                 + [self.output().path]
             )

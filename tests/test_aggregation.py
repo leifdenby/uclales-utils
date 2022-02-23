@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 
@@ -6,7 +7,7 @@ import pytest
 
 import uclales
 
-USE_CDO = False
+USE_CDO = os.environ.get("CDO_VERSION", "") != ""
 EXTRACTION_MODES = ["blocks", "x_strips", "y_strips"]
 
 
