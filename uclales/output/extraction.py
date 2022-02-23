@@ -10,6 +10,7 @@ import pprint
 import signal
 import subprocess
 from pathlib import Path
+import functools
 
 import luigi
 import xarray as xr
@@ -74,7 +75,7 @@ def _execute(cmd):
         raise subprocess.CalledProcessError(return_code, cmd)
 
 
-def _call_cdo(args, verbose=True):
+def _call_cdo(args, verbose=True, return_output_on_error=False):
     try:
         cmd = ["cdo"] + args
         for output in _execute(cmd):
@@ -82,6 +83,8 @@ def _call_cdo(args, verbose=True):
                 print((output.strip()))
 
     except subprocess.CalledProcessError as ex:
+        if return_output_on_error:
+            return str(ex)
         return_code = ex.returncode
         error_extra = ""
         if -return_code == signal.SIGSEGV:
@@ -91,6 +94,13 @@ def _call_cdo(args, verbose=True):
             "There was a problem when calling the tracking "
             "utility (errno={}): {} {}".format(error_extra, return_code, ex)
         )
+
+
+@functools.lru_cache(10)
+def _cdo_has_command(cmd):
+    blah = "Operator >gather< not found!" not in _call_cdo([cmd], verbose=False, return_output_on_error=True)
+    return False
+
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -379,8 +389,12 @@ class UCLALESStripSelectVariable(luigi.Task):
 
     def run(self):
         if self.use_cdo:
+            if _cdo_has_command("gather"):
+                cdo_command = "gather"
+            else:
+                cdo_command = "collgrid"
             args = (
-                ["gather,1"] + [inp.path for inp in self.input()] + [self.output().path]
+                [f"{cdo_command},1"] + [inp.path for inp in self.input()] + [self.output().path]
             )
             _call_cdo(args)
         else:
@@ -572,8 +586,12 @@ class Extract3DbyStrips(_Merge3DBaseTask):
 
     def run(self):
         if self.use_cdo:
+            if _cdo_has_command("gather"):
+                cdo_command = "gather"
+            else:
+                cdo_command = "collgrid"
             args = (
-                ["gather"]
+                [cdo_command]
                 + [inp.path for inp in self.input()["parts"]]
                 + [self.output().path]
             )

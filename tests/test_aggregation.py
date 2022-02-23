@@ -13,6 +13,7 @@ def test_extract_3d(testdata_path):
     )
 
     luigi.build([task], local_scheduler=True)
+    assert task.output().exists()
 
 
 def test_extract_2d(testdata_path):
@@ -26,3 +27,4 @@ def test_extract_2d(testdata_path):
     )
 
     luigi.build([task], local_scheduler=True)
+    assert task.output().exists()
