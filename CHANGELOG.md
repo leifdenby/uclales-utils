@@ -9,13 +9,13 @@
 
 - Add support cdo version `>= 1.7.0`. In cdo `1.7.0` the `gather` command was
   renamed as `collgrid`, the extraction routines now check for which command is
-  available. Continous integration now checks multiple cdo version and without
+  available. Continuous integration now checks multiple cdo version and without
   cdo for extraction (using only xarray)
   [\#7](https://github.com/leifdenby/uclales-utils/pull/7)
 
 *bugfixes*
 
-- Fix to ensure that extacting using y-strips works with cdo.
+- Fix to ensure that extracting using y-strips works with cdo.
   [\#7](https://github.com/leifdenby/uclales-utils/pull/7)
 
 - Fix numerous bugs, specifically: 1) ensure `use_cdo` is correctly passed to
