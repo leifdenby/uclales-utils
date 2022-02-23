@@ -6,11 +6,11 @@ luigi-based pipeline for extracting either:
 
 from per-core column output from the UCLALES model
 """
+import functools
 import pprint
 import signal
 import subprocess
 from pathlib import Path
-import functools
 
 import luigi
 import xarray as xr
@@ -65,14 +65,16 @@ class XArrayTarget(luigi.target.FileSystemTarget):
 def _execute(cmd):
     print(" ".join(cmd))
     # https://stackoverflow.com/a/4417735
-    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+    popen = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
     for stdout_line in iter(popen.stdout.readline, ""):
         yield stdout_line
     popen.stdout.close()
     return_code = popen.wait()
 
     if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
+        raise subprocess.CalledProcessError(return_code, cmd, popen.stderr.read())
 
 
 def _call_cdo(args, verbose=True, return_output_on_error=False):
@@ -84,7 +86,7 @@ def _call_cdo(args, verbose=True, return_output_on_error=False):
 
     except subprocess.CalledProcessError as ex:
         if return_output_on_error:
-            return str(ex)
+            return vars(ex)["output"]
         return_code = ex.returncode
         error_extra = ""
         if -return_code == signal.SIGSEGV:
@@ -98,9 +100,9 @@ def _call_cdo(args, verbose=True, return_output_on_error=False):
 
 @functools.lru_cache(10)
 def _cdo_has_command(cmd):
-    blah = "Operator >gather< not found!" not in _call_cdo([cmd], verbose=False, return_output_on_error=True)
-    return False
-
+    output = _call_cdo([cmd], verbose=False, return_output_on_error=True)
+    has_op = "Operator >gather< not found!" not in output
+    return has_op
 
 
 class XArrayTargetUCLALES(XArrayTarget):
@@ -116,8 +118,9 @@ class XArrayTargetUCLALES(XArrayTarget):
 
 def _build_filename(data_stage, data_kind, **kwargs):
     if data_kind == "3d":
-        if kwargs.get("tn") is None:
+        if kwargs.get("tn") is None and data_stage != "source_block":
             raise Exception("`tn` must be given for 3D output")
+
         if data_stage == "source_block":
             filename_format = SOURCE_BLOCK_FILENAME_FORMAT_3D
         elif data_stage == "block_variable":
@@ -394,7 +397,9 @@ class UCLALESStripSelectVariable(luigi.Task):
             else:
                 cdo_command = "collgrid"
             args = (
-                [f"{cdo_command},1"] + [inp.path for inp in self.input()] + [self.output().path]
+                [f"{cdo_command}"]
+                + [inp.path for inp in self.input()]
+                + [self.output().path]
             )
             _call_cdo(args)
         else:
@@ -492,7 +497,7 @@ class _Merge3DBaseTask(luigi.Task):
         return XArrayTarget(str(p))
 
 
-class Extract3DbyBlocks(_Merge3DBaseTask):
+class ExtractByBlocks(_Merge3DBaseTask):
     """
     Aggregate all nx*nx blocks for variable `var_name` at timestep `tn` into a
     single file
@@ -530,7 +535,7 @@ class Extract3DbyBlocks(_Merge3DBaseTask):
         return tasks
 
 
-class Extract3DbyStrips(_Merge3DBaseTask):
+class ExtractByStrips(_Merge3DBaseTask):
     """
     Aggregate all strips along `dim` dimension for `var_name` at timestep `tn` into a
     single file
@@ -591,7 +596,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
             else:
                 cdo_command = "collgrid"
             args = (
-                [cdo_command]
+                [f"{cdo_command},1"]
                 + [inp.path for inp in self.input()["parts"]]
                 + [self.output().path]
             )
@@ -605,7 +610,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
                 Path(self.output().path).unlink()
                 raise
         else:
-            super(Extract3DbyStrips, self).run()
+            super(ExtractByStrips, self).run()
 
     def requires(self):
         nx, ny = _find_number_of_blocks(
@@ -663,7 +668,7 @@ class Extract(luigi.Task):
 
     def requires(self):
         if self.mode == "blocks":
-            return Extract3DbyBlocks(
+            return ExtractByBlocks(
                 file_prefix=self.file_prefix,
                 var_name=self.var_name,
                 tn=self.tn,
@@ -673,7 +678,7 @@ class Extract(luigi.Task):
                 dest_path=self.dest_path,
             )
         elif self.mode.endswith("_strips"):
-            return Extract3DbyStrips(
+            return ExtractByStrips(
                 file_prefix=self.file_prefix,
                 use_cdo=self.use_cdo,
                 var_name=self.var_name,
