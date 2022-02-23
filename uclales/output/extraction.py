@@ -106,8 +106,9 @@ class XArrayTargetUCLALES(XArrayTarget):
 
 def _build_filename(data_stage, data_kind, **kwargs):
     if data_kind == "3d":
-        if kwargs.get("tn") is None:
+        if kwargs.get("tn") is None and data_stage != "source_block":
             raise Exception("`tn` must be given for 3D output")
+
         if data_stage == "source_block":
             filename_format = SOURCE_BLOCK_FILENAME_FORMAT_3D
         elif data_stage == "block_variable":
@@ -454,7 +455,28 @@ class _Merge3DBaseTask(luigi.Task):
     def run(self):
         opened_inputs = dict([(inp, inp.open()) for inp in self.input()["parts"]])
         self._check_inputs(opened_inputs)
-        da = xr.merge(opened_inputs.values())[self.var_name]
+
+        class_name = self.__class__.__name__
+        if class_name == "ExtractByStrips":
+            # when extracting by strips we need to use `xr.concat` instead of
+            # `xr.merge`, and so we need to know which dimension to concatenate
+            # along
+            concat_dim = None
+            da_first = next(iter(opened_inputs.values()))
+            for d in da_first.dims:
+                if d.startswith(self.dim):
+                    concat_dim = d
+                    break
+
+            # couldn't find dim to concat along
+            if concat_dim is None:
+                raise NotImplementedError(da_first.dims)
+            da = xr.concat(opened_inputs.values(), dim=concat_dim)
+        elif class_name == "ExtractByBlocks":
+            da = xr.merge(opened_inputs.values())[self.var_name]
+        else:
+            raise NotImplementedError(class_name)
+
         self._check_output(da=da)
 
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
@@ -478,7 +500,7 @@ class _Merge3DBaseTask(luigi.Task):
         return XArrayTarget(str(p))
 
 
-class Extract3DbyBlocks(_Merge3DBaseTask):
+class ExtractByBlocks(_Merge3DBaseTask):
     """
     Aggregate all nx*nx blocks for variable `var_name` at timestep `tn` into a
     single file
@@ -495,7 +517,10 @@ class Extract3DbyBlocks(_Merge3DBaseTask):
     def requires(self):
         tasks = super().requires()
         nx, ny = _find_number_of_blocks(
-            file_prefix=self.file_prefix, source_path=self.source_path
+            file_prefix=self.file_prefix,
+            source_path=self.source_path,
+            kind=self.kind,
+            orientation=self.orientation,
         )
 
         tasks_parts = []
@@ -509,6 +534,7 @@ class Extract3DbyBlocks(_Merge3DBaseTask):
                     tn=self.tn,
                     kind=self.kind,
                     orientation=self.orientation,
+                    source_path=self.source_path,
                 )
                 tasks_parts.append(t)
 
@@ -516,7 +542,7 @@ class Extract3DbyBlocks(_Merge3DBaseTask):
         return tasks
 
 
-class Extract3DbyStrips(_Merge3DBaseTask):
+class ExtractByStrips(_Merge3DBaseTask):
     """
     Aggregate all strips along `dim` dimension for `var_name` at timestep `tn` into a
     single file
@@ -534,7 +560,10 @@ class Extract3DbyStrips(_Merge3DBaseTask):
 
     def _check_inputs(self, opened_inputs):
         nx_b, ny_b = _find_number_of_blocks(
-            file_prefix=self.file_prefix, source_path=self.source_path
+            file_prefix=self.file_prefix,
+            source_path=self.source_path,
+            kind=self.kind,
+            orientation=self.orientation,
         )
 
         # find block size
@@ -547,8 +576,10 @@ class Extract3DbyStrips(_Merge3DBaseTask):
 
         if self.dim == "x":
             expected_shape = (b_nx, b_ny * ny_b)
+            expected_shape_calc_str = f"({b_nx}, {b_ny} * {ny_b})"
         elif self.dim == "y":
             expected_shape = (b_nx * nx_b, b_ny)
+            expected_shape_calc_str = f"({b_nx} * {nx_b}, {b_ny}"
 
         invalid_shape = {}
         for inp, da_strip in opened_inputs.items():
@@ -562,7 +593,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
         if len(invalid_shape) > 0:
             err_str = (
                 "The following input strip files don't have the expected shape "
-                f"{expected_shape}:\n\t"
+                f"{expected_shape_calc_str} = {expected_shape}:\n\t"
             )
 
             err_str += "\n\t".join(
@@ -587,7 +618,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
                 Path(self.output().path).unlink()
                 raise
         else:
-            super(Extract3DbyStrips, self).run()
+            super(ExtractByStrips, self).run()
 
     def requires(self):
         nx, ny = _find_number_of_blocks(
@@ -617,6 +648,7 @@ class Extract3DbyStrips(_Merge3DBaseTask):
                 var_name=self.var_name,
                 source_path=self.source_path,
                 dest_path=self.dest_path,
+                use_cdo=self.use_cdo,
             )
             for i in range(nidx)
         ]
@@ -645,7 +677,12 @@ class Extract(luigi.Task):
 
     def requires(self):
         if self.mode == "blocks":
-            return Extract3DbyBlocks(
+            if self.use_cdo:
+                raise NotImplementedError(
+                    "It isn't currently possible to use cdo to extract-by-blocks"
+                    " to avoid creating intermediate strips"
+                )
+            return ExtractByBlocks(
                 file_prefix=self.file_prefix,
                 var_name=self.var_name,
                 tn=self.tn,
@@ -655,7 +692,7 @@ class Extract(luigi.Task):
                 dest_path=self.dest_path,
             )
         elif self.mode.endswith("_strips"):
-            return Extract3DbyStrips(
+            return ExtractByStrips(
                 file_prefix=self.file_prefix,
                 use_cdo=self.use_cdo,
                 var_name=self.var_name,
