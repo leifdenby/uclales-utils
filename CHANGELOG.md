@@ -5,7 +5,18 @@
 
 [Full Changelog](https://github.com/convml/convml_tt/compare/...v0.1.1)
 
+*new features*
+
+- Add support cdo version `>= 1.7.0`. In cdo `1.7.0` the `gather` command was
+  renamed as `collgrid`, the extraction routines now check for which command is
+  available. Continous integration now checks multiple cdo version and without
+  cdo for extraction (using only xarray)
+  [\#7](https://github.com/leifdenby/uclales-utils/pull/7)
+
 *bugfixes*
+
+- Fix to ensure that extacting using y-strips works with cdo.
+  [\#7](https://github.com/leifdenby/uclales-utils/pull/7)
 
 - Fix numerous bugs, specifically: 1) ensure `use_cdo` is correctly passed to
   child-tasks. 2) 3D source-files don't have a timestep (`tn`) in the filename,
