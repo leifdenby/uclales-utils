@@ -22,6 +22,7 @@ jobs:
         python-version: [3.8]
         cdo-version: [null, 1.7.0, 2.0.0]
 
+    name: python ${{ matrix.python-version }} with cdo ${{ matrix.cdo-version }}
     steps:
       - uses: actions/checkout@v2
         with:

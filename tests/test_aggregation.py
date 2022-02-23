@@ -7,7 +7,7 @@ import pytest
 
 import uclales
 
-USE_CDO = os.environ.get("CDO_VERSION", "null") != "null"
+USE_CDO = os.environ.get("CDO_VERSION", "") != ""
 EXTRACTION_MODES = ["blocks", "x_strips", "y_strips"]
 
 
