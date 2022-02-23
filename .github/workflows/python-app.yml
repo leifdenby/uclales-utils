@@ -22,8 +22,15 @@ jobs:
         python-version: [3.8]
         cdo-version: [null, 1.9.6, 2.0.0]
 
-    name: python ${{ matrix.python-version }} ${{ matrix.cdo-version != null && "with cdo " + matrix.cdo-version || "without cdo" }}
+    name: python ${{ matrix.python-version }} ${{ matrix.cdo-version != null && "with cdo" || "without cdo" }} ${{ matrix.cdo-version }}
     steps:
+      - uses: haya14busa/action-cond@v1
+        id: nameval
+        with:
+          cond: ${{ matrix.cdo-version != null }}
+          if_true: with cdo ${{ matrix.cdo-version }}
+          if_false: without cdo
+
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0 # Fetch all history for all branches and tags.
