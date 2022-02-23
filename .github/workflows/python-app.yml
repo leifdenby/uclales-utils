@@ -22,7 +22,7 @@ jobs:
         python-version: [3.8]
         cdo-version: [null, 1.9.6, 2.0.0]
 
-    name: python ${{ matrix.python-version }} ${{ matrix.cdo-version != null && "with" || "without" }} cdo ${{ matrix.cdo-version }}
+    name: python ${{ matrix.python-version }} ${{ matrix.cdo-version != null && 'with' || 'without' }} cdo ${{ matrix.cdo-version }}
     steps:
       - uses: haya14busa/action-cond@v1
         id: nameval
