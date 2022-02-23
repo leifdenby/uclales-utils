@@ -35,6 +35,7 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for all branches and tags.
       - uses: conda-incubator/setup-miniconda@v2
+        if: matrix.cdo-version != null
         with:
           channels: conda-forge
           channel-priority: strict
@@ -43,10 +44,16 @@ jobs:
           auto-update-conda: false
           python-version: ${{ matrix.python-version }}
 
-      - name: Set up conda environment
+      - name: Install cdo
         if: matrix.cdo-version != null
         run: |
           mamba install cdo==${{ matrix.cdo-version }} -c conda-forge
+
+      - name: Set up Python ${{ matrix.python-version }}
+        if: matrix.cdo-version == null
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
