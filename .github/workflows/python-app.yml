@@ -20,9 +20,9 @@ jobs:
     strategy:
       matrix:
         python-version: [3.8]
-        cdo-version: [null, 1.7.0, 2.0.0]
+        cdo-version: [null, 1.9.6, 2.0.0]
 
-    name: python ${{ matrix.python-version }} with cdo ${{ matrix.cdo-version }}
+    name: python ${{ matrix.python-version }} ${{ matrix.cdo-version != null && "with cdo " + matrix.cdo-version || "without cdo" }}
     steps:
       - uses: actions/checkout@v2
         with:
