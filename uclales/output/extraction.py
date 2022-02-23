@@ -396,8 +396,14 @@ class UCLALESStripSelectVariable(luigi.Task):
                 cdo_command = "gather"
             else:
                 cdo_command = "collgrid"
+
+            # if we're concatenating in the x-direction we need to tell cdo to
+            # add an extra dimension for y
+            if self.dim == "x":
+                cdo_command += ",1"
+
             args = (
-                [f"{cdo_command}"]
+                [cdo_command]
                 + [inp.path for inp in self.input()]
                 + [self.output().path]
             )
@@ -625,8 +631,14 @@ class ExtractByStrips(_Merge3DBaseTask):
                 cdo_command = "gather"
             else:
                 cdo_command = "collgrid"
+
+            # if we're concatenating in the y-direction we need to tell cdo to
+            # add an extra dimension for x
+            if self.dim == "y":
+                cdo_command += ",1"
+
             args = (
-                [f"{cdo_command},1"]
+                [cdo_command]
                 + [inp.path for inp in self.input()["parts"]]
                 + [self.output().path]
             )
