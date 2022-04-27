@@ -93,8 +93,8 @@ def _call_cdo(args, verbose=True, return_output_on_error=False):
             error_extra = ", the utility segfaulted "
 
         raise Exception(
-            "There was a problem when calling the tracking "
-            "utility (errno={}): {} {}".format(error_extra, return_code, ex)
+            "There was a problem when calling cdo "
+            "utility (errno={}): {} {}".format(error_extra, return_code, ex.output)
         )
 
 
