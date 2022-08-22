@@ -255,6 +255,8 @@ class UCLALESBlockSelectVariable(luigi.Task):
     orientation = luigi.OptionalParameter(default=None)
     dest_path = luigi.OptionalParameter(default=".")
 
+    use_cdo = luigi.BoolParameter(default=True)
+
     def requires(self):
         return UCLALESOutputBlock(
             file_prefix=self.file_prefix,
@@ -265,7 +267,7 @@ class UCLALESBlockSelectVariable(luigi.Task):
             orientation=self.orientation,
         )
 
-    def run(self):
+    def _run_xarray(self):
         ds_block = self.input().open()
         try:
             da_block_var = ds_block[self.var_name]
@@ -291,8 +293,8 @@ class UCLALESBlockSelectVariable(luigi.Task):
         else:
             raise NotImplementedError(self.kind)
 
-        # to use cdo the dimensions have to be (time, y, x, z)...
-        posns = dict(time=0, zt=3, zm=3, yt=1, ym=1, xt=2, xm=2)
+        # to use cdo the dimensions have to be (time, z, y, x)...
+        posns = dict(time=0, zt=1, zm=1, yt=2, ym=2, xt=3, xm=3)
         dims = [None, None, None, None]
         for d in list(da_block_var.dims):
             dims[posns[d]] = d
@@ -303,6 +305,33 @@ class UCLALESBlockSelectVariable(luigi.Task):
 
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         da_block_var.to_netcdf(self.output().path)
+
+    def run(self):
+        if self.use_cdo:
+            self._run_cdo()
+        else:
+            self._run_xarray()
+
+    def _run_cdo(self):
+        Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
+        args = []
+        if self.kind == "3d":
+            # we're chaining selecting a variable and picking a timestep when
+            # extracting from 3D files. This can lead to segfaults because the
+            # underlyding HDF5 library might not be thread safe
+            # https://code.mpimet.mpg.de/projects/cdo/wiki/CDO#Segfault-with-netcdf4-files
+            # try to avoid segfaults with hdf5 lib by adding the "-L" flag
+            args.append("-L")
+        args.append(f"selname,{self.var_name}")
+
+        if self.kind == "3d":
+            args.append(f"-seltimestep,{self.tn+1}")
+
+        args += [
+            self.input().path,
+            self.output().path,
+        ]
+        _call_cdo(args)
 
     def output(self):
         p = _build_path(
@@ -447,6 +476,7 @@ class _Merge3DBaseTask(luigi.Task):
                 kind=self.kind,
                 orientation=self.orientation,
                 dest_path=self.dest_path,
+                use_cdo=self.use_cdo,
             )
         )
 
@@ -539,6 +569,8 @@ class ExtractByBlocks(_Merge3DBaseTask):
     kind = luigi.Parameter()
     orientation = luigi.OptionalParameter(default=None)
     dest_path = luigi.OptionalParameter(default=".")
+
+    use_cdo = False
 
     def requires(self):
         tasks = super().requires()

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import luigi
 import pytest
+import xarray as xr
 
 import uclales
 
@@ -35,6 +36,16 @@ def test_extract_3d(testdata_path, extraction_mode):
     luigi.build([task], local_scheduler=True)
     assert task.output().exists()
 
+    # test that the dimensions order is unchanged from the source blocks
+    da_out = task.output().open()
+    da_firstblock = xr.open_dataset(Path(testdata_path) / "rico.00000000.nc")["w"]
+    assert list(da_out.dims) == list(da_firstblock.dims)
+
+    # test the final shape
+    # NB: this number is hard-coded for now and will have be changed if the
+    # test data changes
+    assert da_out.shape == (1, 128, 128, 70)
+
 
 @pytest.mark.parametrize("extraction_mode", EXTRACTION_MODES)
 def test_extract_2d(testdata_path, extraction_mode):
@@ -60,3 +71,15 @@ def test_extract_2d(testdata_path, extraction_mode):
 
     luigi.build([task], local_scheduler=True)
     assert task.output().exists()
+
+    # test the final shape
+    # NB: this number is hard-coded for now and will have be changed if the
+    # test data changes
+    da_out = task.output().open()
+    assert da_out.shape == (18, 128, 128)
+
+    # test that the dimensions order is unchanged from the source blocks
+    da_firstblock = xr.open_dataset(
+        Path(testdata_path) / "rico.out.xy.0000.0000.nc"
+    ).lwp
+    assert da_out.dims == da_firstblock.dims
