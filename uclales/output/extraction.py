@@ -291,8 +291,8 @@ class UCLALESBlockSelectVariable(luigi.Task):
         else:
             raise NotImplementedError(self.kind)
 
-        # to use cdo the dimensions have to be (time, z, y, x)...
-        posns = dict(time=0, zt=1, zm=1, yt=2, ym=2, xt=3, xm=3)
+        # to use cdo the dimensions have to be (time, y, x, z)...
+        posns = dict(time=0, zt=3, zm=3, yt=1, ym=1, xt=2, xm=2)
         dims = [None, None, None, None]
         for d in list(da_block_var.dims):
             dims[posns[d]] = d
