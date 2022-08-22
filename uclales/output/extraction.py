@@ -285,7 +285,9 @@ class UCLALESBlockSelectVariable(luigi.Task):
                 da_block_var["yt"] = ds_block.yt.mean()
                 da_block_var = da_block_var.expand_dims(["xt", "yt"])
         elif self.kind == "3d":
-            da_block_var = da_block_var.isel(time=self.tn).expand_dims("time")
+            # ensure we cast to int here, `luigi.OptionalParameter` is always a
+            # string, but indexing by strings can lead to strange behaviour...
+            da_block_var = da_block_var.isel(time=int(self.tn)).expand_dims("time")
         else:
             raise NotImplementedError(self.kind)
 
