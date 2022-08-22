@@ -593,6 +593,7 @@ class ExtractByBlocks(_Merge3DBaseTask):
                     kind=self.kind,
                     orientation=self.orientation,
                     source_path=self.source_path,
+                    use_cdo=self.use_cdo,
                 )
                 tasks_parts.append(t)
 
