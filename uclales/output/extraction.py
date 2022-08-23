@@ -255,6 +255,8 @@ class UCLALESBlockSelectVariable(luigi.Task):
     orientation = luigi.OptionalParameter(default=None)
     dest_path = luigi.OptionalParameter(default=".")
 
+    use_cdo = luigi.BoolParameter(default=True)
+
     def requires(self):
         return UCLALESOutputBlock(
             file_prefix=self.file_prefix,
@@ -265,7 +267,7 @@ class UCLALESBlockSelectVariable(luigi.Task):
             orientation=self.orientation,
         )
 
-    def run(self):
+    def _run_xarray(self):
         ds_block = self.input().open()
         try:
             da_block_var = ds_block[self.var_name]
@@ -291,18 +293,35 @@ class UCLALESBlockSelectVariable(luigi.Task):
         else:
             raise NotImplementedError(self.kind)
 
-        # to use cdo the dimensions have to be (time, z, y, x)...
-        posns = dict(time=0, zt=1, zm=1, yt=2, ym=2, xt=3, xm=3)
-        dims = [None, None, None, None]
-        for d in list(da_block_var.dims):
-            dims[posns[d]] = d
-
-        if self.kind == "2d":
-            dims = [d for d in dims if d in da_block_var.dims]
-        da_block_var = da_block_var.transpose(*dims)
-
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         da_block_var.to_netcdf(self.output().path)
+
+    def run(self):
+        if self.use_cdo:
+            self._run_cdo()
+        else:
+            self._run_xarray()
+
+    def _run_cdo(self):
+        Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
+        args = []
+        if self.kind == "3d":
+            # we're chaining selecting a variable and picking a timestep when
+            # extracting from 3D files. This can lead to segfaults because the
+            # underlyding HDF5 library might not be thread safe
+            # https://code.mpimet.mpg.de/projects/cdo/wiki/CDO#Segfault-with-netcdf4-files
+            # try to avoid segfaults with hdf5 lib by adding the "-L" flag
+            args.append("-L")
+        args.append(f"selname,{self.var_name}")
+
+        if self.kind == "3d":
+            args.append(f"-seltimestep,{self.tn+1}")
+
+        args += [
+            self.input().path,
+            self.output().path,
+        ]
+        _call_cdo(args)
 
     def output(self):
         p = _build_path(
@@ -374,6 +393,7 @@ class UCLALESStripSelectVariable(luigi.Task):
                 kind=self.kind,
                 orientation=self.orientation,
                 dest_path=self.dest_path,
+                use_cdo=self.use_cdo,
                 **make_kws(n=n),
             )
             for n in range(nidx)
@@ -447,6 +467,7 @@ class _Merge3DBaseTask(luigi.Task):
                 kind=self.kind,
                 orientation=self.orientation,
                 dest_path=self.dest_path,
+                use_cdo=self.use_cdo,
             )
         )
 
@@ -499,7 +520,11 @@ class _Merge3DBaseTask(luigi.Task):
                 raise NotImplementedError(da_first.dims)
             da = xr.concat(opened_inputs.values(), dim=concat_dim)
         elif class_name == "ExtractByBlocks":
-            da = xr.merge(opened_inputs.values())[self.var_name]
+            da_first = self.input()["first_block"].open()[self.var_name]
+            # ensure we retain the same coordinate ordering as in the source blocks
+            da = xr.merge(opened_inputs.values())[self.var_name].transpose(
+                *da_first.dims
+            )
         else:
             raise NotImplementedError(class_name)
 
@@ -540,6 +565,8 @@ class ExtractByBlocks(_Merge3DBaseTask):
     orientation = luigi.OptionalParameter(default=None)
     dest_path = luigi.OptionalParameter(default=".")
 
+    use_cdo = False
+
     def requires(self):
         tasks = super().requires()
         nx, ny = _find_number_of_blocks(
@@ -561,6 +588,8 @@ class ExtractByBlocks(_Merge3DBaseTask):
                     kind=self.kind,
                     orientation=self.orientation,
                     source_path=self.source_path,
+                    use_cdo=self.use_cdo,
+                    dest_path=self.dest_path,
                 )
                 tasks_parts.append(t)
 
