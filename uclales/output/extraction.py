@@ -293,16 +293,6 @@ class UCLALESBlockSelectVariable(luigi.Task):
         else:
             raise NotImplementedError(self.kind)
 
-        # to use cdo the dimensions have to be (time, z, y, x)...
-        posns = dict(time=0, zt=1, zm=1, yt=2, ym=2, xt=3, xm=3)
-        dims = [None, None, None, None]
-        for d in list(da_block_var.dims):
-            dims[posns[d]] = d
-
-        if self.kind == "2d":
-            dims = [d for d in dims if d in da_block_var.dims]
-        da_block_var = da_block_var.transpose(*dims)
-
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         da_block_var.to_netcdf(self.output().path)
 
@@ -403,6 +393,7 @@ class UCLALESStripSelectVariable(luigi.Task):
                 kind=self.kind,
                 orientation=self.orientation,
                 dest_path=self.dest_path,
+                use_cdo=self.use_cdo,
                 **make_kws(n=n),
             )
             for n in range(nidx)
@@ -529,7 +520,11 @@ class _Merge3DBaseTask(luigi.Task):
                 raise NotImplementedError(da_first.dims)
             da = xr.concat(opened_inputs.values(), dim=concat_dim)
         elif class_name == "ExtractByBlocks":
-            da = xr.merge(opened_inputs.values())[self.var_name]
+            da_first = self.input()["first_block"].open()[self.var_name]
+            # ensure we retain the same coordinate ordering as in the source blocks
+            da = xr.merge(opened_inputs.values())[self.var_name].transpose(
+                *da_first.dims
+            )
         else:
             raise NotImplementedError(class_name)
 
@@ -594,6 +589,7 @@ class ExtractByBlocks(_Merge3DBaseTask):
                     orientation=self.orientation,
                     source_path=self.source_path,
                     use_cdo=self.use_cdo,
+                    dest_path=self.dest_path,
                 )
                 tasks_parts.append(t)
 
