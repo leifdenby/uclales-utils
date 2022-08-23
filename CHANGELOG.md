@@ -1,6 +1,28 @@
 # Changelog
 
 
+## [Unreleased](https://github.com/leifdenby/uclales-utils/tree/HEAD)
+
+[Full Changelog](https://github.com/convml/convml_tt/compare/HEAD...v0.1.3)
+
+*bugfixes*
+
+- Ensure that coordinate ordering stays the same as in the per-core source
+  files. Previously the ordering was changed to always be (z,y,x)
+  [\#10](https://github.com/leifdenby/uclales-utils/pull/10)
+
+*changed defaults*
+
+- Output files now have same coordinate ordering as source files
+  [\#10](https://github.com/leifdenby/uclales-utils/pull/10), rather than
+  `(z,y,x)` ordering.
+
+- When using `cdo` for extraction, the single variable/timestep extraction is
+  now done also done with `cdo` (rather than `xarray`) for this first step.
+  This ensures that coordinate ordering is unchanged.
+  [\#10](https://github.com/leifdenby/uclales-utils/pull/10), rather than
+
+
 ## [v0.1.3](https://github.com/leifdenby/uclales-utils/tree/v0.1.3)
 
 [Full Changelog](https://github.com/convml/convml_tt/compare/v0.1.3...v0.1.2)
