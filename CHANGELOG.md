@@ -1,9 +1,9 @@
 # Changelog
 
 
-## [Unreleased](https://github.com/leifdenby/uclales-utils/tree/HEAD)
+## [v0.1.4](https://github.com/leifdenby/uclales-utils/tree/HEAD)
 
-[Full Changelog](https://github.com/convml/convml_tt/compare/HEAD...v0.1.3)
+[Full Changelog](https://github.com/convml/convml_tt/compare/v0.1.4...v0.1.3)
 
 *bugfixes*
 
